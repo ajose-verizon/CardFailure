@@ -22,7 +22,13 @@ def fetch_circuits(username, password, payload):
         timeout = (30, 200), 
         auth = (username, password)
     ) 
-    return response.json()["results"]
+
+    ##########################################################################################
+    response_data = response.json()
+    message = response_data.get("message")
+    results = response_data.get("results")
+    return message, results
+    ##########################################################################################
 
 
 def map_parent_child(circuits):
@@ -37,6 +43,7 @@ def map_parent_child(circuits):
     # parent_child_dict = {}
     ##########################################################################################
     temporary_dict = defaultdict(dict)
+    # child circuits that have parent circuits
     children_with_parents = set()
     ##########################################################################################
 
@@ -45,7 +52,7 @@ def map_parent_child(circuits):
     for circuit in circuits:
         parent = None
 
-        #get the parentCircuitList if exists, if otw use empty dict
+        #get the parentCircuitList if it exists, if otw use empty dict
         parent_list = circuit.get("parentCircuitList", {})
 
         #get the parentCircuit list from above
@@ -181,6 +188,7 @@ def extract_endpoint_info(endpoint):
         } 
 
 ##########################################################################################
+# alternate extract function if the zEnd info isn't explicity given
 def alternate_extract(endpoint_info, tid, ):
     match = re.match(r"AID=([A-Za-z0-9]+\/\d)\/\d(\/\d)", endpoint_info)
     port_aid = None
@@ -249,6 +257,7 @@ def fetch_endpoints(circuit_id):
         info_extracted = True
 
     ##########################################################################################
+    # if the zEnd info is ever missing
     except (KeyError, IndexError):
         print(f"\nCircuit ID: {circuit_id} - Primary portRef extraction failed. Attempting SNC data extraction...")
         
@@ -276,7 +285,7 @@ def fetch_endpoints(circuit_id):
                      if isinstance(current_zEnd_info, str) and re.match(r"AID=[a-zA-Z0-9\/]+", current_zEnd_info):
                          zEnd_info = current_zEnd_info
                          break
-                     
+                # if the aEnd and zEnd are the same exact location     
                 if aEnd_tid == zEnd_tid:
                     print(f"Circuit ID: {circuit_id} - SNC data fallback: A-End TID and Z-End TID match.")
 
@@ -355,13 +364,19 @@ def main():
 
     #Step 2: Fetch all circuit data
     payload = {
-        "tid": "WSPTMADR-0112106A",
+        "tid": "SRDNNYAB-022607A",
         "shelfName": "21",
-        "slotName": "5",       
+        "slotName": "19",       
         "system": "GNMOA"
     }
 
-    circuits = fetch_circuits(username, password, payload)
+    ##########################################################################################
+    message, circuits = fetch_circuits(username, password, payload)
+    # if the circuits have an issue being fetched
+    if circuits is None:
+        print(f"\n Error for payload TID {payload["tid"]} - {message}\n")
+        raise KeyError(f"The 'results' key was missing in the API response for TID '{payload['tid']}' with message: '{message}'")
+    ##########################################################################################
 
     #Step 3: Mapping parent to children
     parent_child_dict = map_parent_child(circuits)
